@@ -3,6 +3,7 @@ package decimal128
 import (
 	"encoding/xml"
 	"errors"
+	"strings"
 )
 
 func (d Decimal) MarshalXML(xe *xml.Encoder, start xml.StartElement) error {
@@ -33,7 +34,23 @@ func (d *Decimal) UnmarshalXML(xd *xml.Decoder, start xml.StartElement) error {
 	if err != nil {
 		return err
 	}
-	parse, err := parseNumber(v, neg, false)
+
+	value := strings.TrimSpace(v)
+	l := len(value)
+
+	if l == 0 {
+		return nil
+	}
+
+	i := 0
+	if value[0] == '+' {
+		i = 1
+	} else if value[0] == '-' {
+		neg = true
+		i = 1
+	}
+
+	parse, err := parseNumber(value[i:], neg, false)
 	if err != nil {
 		return err
 	}
@@ -44,10 +61,27 @@ func (d *Decimal) UnmarshalXML(xd *xml.Decoder, start xml.StartElement) error {
 
 func (d *Decimal) UnmarshalXMLAttr(attr xml.Attr) error {
 	neg := false
-	parse, err := parseNumber(attr.Value, neg, false)
+
+	value := strings.TrimSpace(attr.Value)
+	l := len(value)
+
+	if l == 0 {
+		return nil
+	}
+
+	i := 0
+	if value[0] == '+' {
+		i = 1
+	} else if value[0] == '-' {
+		neg = true
+		i = 1
+	}
+
+	parse, err := parseNumber(value[i:], neg, false)
 	if err != nil {
 		return err
 	}
+
 	*d = parse
 	return nil
 }
