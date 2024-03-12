@@ -105,9 +105,8 @@ func (d *Decimal) UnmarshalXML(xd *xml.Decoder, start xml.StartElement) error {
 	}
 
 	value := strings.TrimSpace(v)
-	l := len(value)
 
-	if l == 0 {
+	if len(value) == 0 {
 		return nil
 	}
 
@@ -133,9 +132,8 @@ func (d *Decimal) UnmarshalXMLAttr(attr xml.Attr) error {
 	neg := false
 
 	value := strings.TrimSpace(attr.Value)
-	l := len(value)
 
-	if l == 0 {
+	if len(value) == 0 {
 		return nil
 	}
 
