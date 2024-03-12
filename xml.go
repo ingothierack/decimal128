@@ -7,21 +7,90 @@ import (
 )
 
 func (d Decimal) MarshalXML(xe *xml.Encoder, start xml.StartElement) error {
-	if d.isSpecial() || d.IsNaN() || d.IsZero() {
+	var v []byte
+
+	if d.isSpecial() {
 		return errors.New("invalid value to marshal")
 	}
-	v := d.String()
-	return xe.EncodeElement(v, start)
+
+	// Write the start element
+	err := xe.EncodeToken(start)
+	if err != nil {
+		return err
+	}
+
+	var digs digits
+	d.digits(&digs)
+
+	prec := 0
+	if digs.ndig != 0 {
+		prec = digs.ndig - 1
+	}
+
+	exp := digs.exp + prec
+
+	if exp < -6 || exp >= 20 {
+		v = digs.fmtE(nil, prec, 0, false, false, false, false, false, false, 'e')
+	} else {
+		prec = 0
+		if digs.exp < 0 {
+			prec = -digs.exp
+		}
+
+		v = digs.fmtF(nil, prec, 0, false, false, false, false, false)
+	}
+	// Write the Decimal string
+	err = xe.EncodeToken(xml.CharData(v))
+	if err != nil {
+		return err
+	}
+
+	// Write the end element
+	err = xe.EncodeToken(start.End())
+	if err != nil {
+		return err
+	}
+
+	// Flush the encoder
+	err = xe.Flush()
+	if err != nil {
+		return err
+	}
+	return nil
+	// return xe.EncodeElement(v, start)
 }
 
 func (d Decimal) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
-	if d.isSpecial() || d.IsNaN() || d.IsZero() {
-		return xml.Attr{}, errors.New("invalid value to marshal")
+	var v []byte
+
+	if d.isSpecial() {
+		return xml.Attr{}, errors.New("invalid value to marshal attribute")
 	}
-	v := d.String()
+
+	var digs digits
+	d.digits(&digs)
+
+	prec := 0
+	if digs.ndig != 0 {
+		prec = digs.ndig - 1
+	}
+
+	exp := digs.exp + prec
+
+	if exp < -6 || exp >= 20 {
+		v = digs.fmtE(nil, prec, 0, false, false, false, false, false, false, 'e')
+	} else {
+		prec = 0
+		if digs.exp < 0 {
+			prec = -digs.exp
+		}
+
+		v = digs.fmtF(nil, prec, 0, false, false, false, false, false)
+	}
+
 	attr := xml.Attr{
 		Name:  name,
-		Value: v,
+		Value: string(v),
 	}
 	return attr, nil
 }
@@ -43,9 +112,10 @@ func (d *Decimal) UnmarshalXML(xd *xml.Decoder, start xml.StartElement) error {
 	}
 
 	i := 0
-	if value[0] == '+' {
+	switch value[0] {
+	case '+':
 		i = 1
-	} else if value[0] == '-' {
+	case '-':
 		neg = true
 		i = 1
 	}
@@ -70,9 +140,10 @@ func (d *Decimal) UnmarshalXMLAttr(attr xml.Attr) error {
 	}
 
 	i := 0
-	if value[0] == '+' {
+	switch value[0] {
+	case '+':
 		i = 1
-	} else if value[0] == '-' {
+	case '-':
 		neg = true
 		i = 1
 	}
