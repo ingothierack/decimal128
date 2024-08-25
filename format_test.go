@@ -2,6 +2,7 @@ package decimal128
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"testing"
@@ -76,9 +77,10 @@ func TestDecimalFormat(t *testing.T) {
 	var appres []byte
 
 	for _, format := range formats {
+		fmtstr := format.String()
+
 		for _, val := range decimalValues {
 			decval := val.Decimal()
-			fmtstr := format.String()
 			res := fmt.Sprintf(fmtstr, decval)
 
 			if strings.Contains(res, "PANIC") {
@@ -163,10 +165,37 @@ func TestDecimalString(t *testing.T) {
 	}
 }
 
-type devNull struct{}
+func TestFormat(t *testing.T) {
+	t.Parallel()
 
-func (d devNull) Write(b []byte) (int, error) {
-	return len(b), nil
+	initDecimalValues()
+
+	var appres []byte
+
+	for _, format := range []byte{'e', 'E', 'f', 'F', 'g', 'G'} {
+		for _, prec := range []int{-1, 0, 4, 15} {
+			for _, val := range decimalValues {
+				decval := val.Decimal()
+				res := Format(decval, format, prec)
+
+				appres = Append(appres[:0], decval, format, prec)
+				if res != string(appres) {
+					t.Errorf("Append(%v, %c, %d) = %s, want %s", val, format, prec, appres, res)
+				}
+
+				fltval, ok := val.Float64()
+				if !ok {
+					// Skipping for now
+					continue
+				}
+
+				fltres := strconv.FormatFloat(fltval, format, prec, 64)
+				if res != fltres {
+					t.Errorf("Format(%v, %c, %d) = %s, want %s", val, format, prec, res, fltres)
+				}
+			}
+		}
+	}
 }
 
 func BenchmarkAppend(b *testing.B) {
@@ -293,13 +322,12 @@ func BenchmarkFormat(b *testing.B) {
 				b.Fatalf("Unexpected formatted value. got %s, "+
 					"want %s", got, tc.want)
 			}
-			w := devNull{}
 
 			// Benchmark.
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				fmt.Fprintf(w, tc.fmt, vptr)
+				fmt.Fprintf(io.Discard, tc.fmt, vptr)
 			}
 		})
 	}
