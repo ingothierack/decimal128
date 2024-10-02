@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/woodsbury/decimal128"
+	"github.com/ingothierack/decimal128"
 )
 
 func ExampleAbs() {
