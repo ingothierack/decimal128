@@ -127,6 +127,18 @@ func TestDecimalMarshalText(t *testing.T) {
 		if !(resval.Equal(decval) || resval.IsNaN() && decval.IsNaN()) || err != nil {
 			t.Errorf("Decimal.UnmarshalText(%s) = (%v, %v), want (%v, <nil>)", res, resval, err, decval)
 		}
+
+		res, err = decval.AppendText(res[:0])
+
+		if err != nil {
+			t.Errorf("%v.AppendText() = (%s, %v), want (%s, <nil>)", val, res, err, res)
+		}
+
+		err = resval.UnmarshalText(res)
+
+		if !(resval.Equal(decval) || resval.IsNaN() && decval.IsNaN()) || err != nil {
+			t.Errorf("Decimal.UnmarshalText(%s) = (%v, %v), want (%v, <nil>)", res, resval, err, decval)
+		}
 	}
 }
 
@@ -161,6 +173,12 @@ func TestDecimalString(t *testing.T) {
 
 		if string(mshres) != res || err != nil {
 			t.Errorf("%v.MarshalText() = (%s, %v), want (%s, <nil>)", val, mshres, err, res)
+		}
+
+		mshres, err = decval.AppendText(mshres[:0])
+
+		if string(mshres) != res || err != nil {
+			t.Errorf("%v.AppendText() = (%s, %v), want (%s, <nil>)", val, mshres, err, res)
 		}
 	}
 }
@@ -246,6 +264,8 @@ func BenchmarkAppend(b *testing.B) {
 	for _, tc := range tests {
 		tc := tc
 		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+
 			// Ensure correctness of test case before benchmarking.
 			v := MustParse(tc.txt)
 			buf := []byte{}
@@ -255,10 +275,7 @@ func BenchmarkAppend(b *testing.B) {
 					"want %s", buf, tc.want)
 			}
 
-			// Benchmark.
-			b.ResetTimer()
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				buf = buf[:0]
 				buf = v.Append(buf, tc.fmt)
 			}
@@ -266,7 +283,50 @@ func BenchmarkAppend(b *testing.B) {
 	}
 }
 
-func BenchmarkFormat(b *testing.B) {
+func BenchmarkDecimalAppendText(b *testing.B) {
+	tests := []struct {
+		name string
+		txt  string
+		want string
+	}{
+		{
+			name: "small number",
+			txt:  "1234.1234",
+			want: "1234.1234",
+		},
+		{
+			name: "large number",
+			txt:  "12345678901234.67890123456789012345",
+			want: "1.234567890123467890123456789012345e+13",
+		},
+		{
+			name: "special",
+			txt:  "nan",
+			want: "NaN",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			// Ensure correctness of test case before benchmarking.
+			v := MustParse(tc.txt)
+			got, err := v.AppendText(nil)
+			if err != nil || string(got) != tc.want {
+				b.Fatalf("Unexpected formatted value. got '%s', "+
+					"want '%s' with %v", got, tc.want, err)
+			}
+
+			for b.Loop() {
+				v.AppendText(got[:0])
+			}
+		})
+	}
+}
+
+func BenchmarkDecimalFormat(b *testing.B) {
 	tests := []struct {
 		name string
 		txt  string
@@ -314,6 +374,8 @@ func BenchmarkFormat(b *testing.B) {
 	for _, tc := range tests {
 		tc := tc
 		b.Run(tc.name, func(b *testing.B) {
+			b.ResetTimer()
+
 			// Ensure correctness of test case before benchmarking.
 			v := MustParse(tc.txt)
 			vptr := &v // Avoid allocating during Fprintf() call
@@ -323,17 +385,14 @@ func BenchmarkFormat(b *testing.B) {
 					"want %s", got, tc.want)
 			}
 
-			// Benchmark.
-			b.ResetTimer()
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				fmt.Fprintf(io.Discard, tc.fmt, vptr)
 			}
 		})
 	}
 }
 
-func BenchmarkMarshalText(b *testing.B) {
+func BenchmarkDecimalMarshalText(b *testing.B) {
 	tests := []struct {
 		name string
 		txt  string
@@ -359,6 +418,8 @@ func BenchmarkMarshalText(b *testing.B) {
 	for _, tc := range tests {
 		tc := tc
 		b.Run(tc.name, func(b *testing.B) {
+			b.ResetTimer()
+
 			// Ensure correctness of test case before benchmarking.
 			v := MustParse(tc.txt)
 			got, err := v.MarshalText()
@@ -367,10 +428,7 @@ func BenchmarkMarshalText(b *testing.B) {
 					"want '%s' with %v", got, tc.want, err)
 			}
 
-			// Benchmark.
-			b.ResetTimer()
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				v.MarshalText()
 			}
 		})
@@ -405,16 +463,15 @@ func BenchmarkParseFormat(b *testing.B) {
 	for _, tc := range tests {
 		tc := tc
 		b.Run(tc.name, func(b *testing.B) {
-			// Benchmark.
 			var args formatArgs
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				parseFormat(tc.fmt, &args)
 			}
 		})
 	}
 }
 
-func BenchmarkString(b *testing.B) {
+func BenchmarkDecimalString(b *testing.B) {
 	tests := []struct {
 		name string
 		txt  string
@@ -440,6 +497,8 @@ func BenchmarkString(b *testing.B) {
 	for _, tc := range tests {
 		tc := tc
 		b.Run(tc.name, func(b *testing.B) {
+			b.ResetTimer()
+
 			// Ensure correctness of test case before benchmarking.
 			v := MustParse(tc.txt)
 			got := v.String()
@@ -448,10 +507,7 @@ func BenchmarkString(b *testing.B) {
 					"want '%s'", got, tc.want)
 			}
 
-			// Benchmark.
-			b.ResetTimer()
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				_ = v.String()
 			}
 		})
