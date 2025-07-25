@@ -206,3 +206,54 @@ func TestDecimalUnmarshalXMLAttr(t *testing.T) {
 		}
 	}
 }
+
+// Benchmark functions
+func BenchmarkMarshalXML(b *testing.B) {
+	testCases := []struct {
+		d     Decimal
+		start xml.StartElement
+	}{
+		{New(471, 0), xml.StartElement{Name: xml.Name{Local: "test"}}},
+		{New(0, 0), xml.StartElement{Name: xml.Name{Local: "test"}}},
+		{New(238, -2), xml.StartElement{Name: xml.Name{Local: "test"}}},
+		{New(-85414437, -8), xml.StartElement{Name: xml.Name{Local: "test"}}},
+		{New(1123456789, -9), xml.StartElement{Name: xml.Name{Local: "test"}}},
+	}
+
+	for i := range testCases {
+		b.Run(string(rune('0'+i)), func(b *testing.B) {
+			b.ResetTimer()
+			for b.Loop() {
+				buf := &bytes.Buffer{}
+				encoder := xml.NewEncoder(buf)
+				_ = testCases[i].d.MarshalXML(encoder, testCases[i].start)
+			}
+		})
+	}
+}
+
+func BenchmarkUnmarshalXML(b *testing.B) {
+	testCases := []struct {
+		xmlFragment string
+		d           *Decimal
+		start       xml.StartElement
+	}{
+		{"<test>471</test>", &Decimal{}, xml.StartElement{Name: xml.Name{Local: "test"}}},
+		{"<test>0</test>", &Decimal{}, xml.StartElement{Name: xml.Name{Local: "test"}}},
+		{"<test>2.38</test>", &Decimal{}, xml.StartElement{Name: xml.Name{Local: "test"}}},
+		{"<test>-8.5414437</test>", &Decimal{}, xml.StartElement{Name: xml.Name{Local: "test"}}},
+		{"<test>1.123456789</test>", &Decimal{}, xml.StartElement{Name: xml.Name{Local: "test"}}},
+	}
+
+	for i := range testCases {
+		b.Run(string(rune('0'+i)), func(b *testing.B) {
+			b.ResetTimer()
+			for b.Loop() {
+				xd := xml.NewDecoder(strings.NewReader(testCases[i].xmlFragment))
+				tok, _ := xd.Token()
+				start, _ := tok.(xml.StartElement)
+				_ = testCases[i].d.UnmarshalXML(xd, start)
+			}
+		})
+	}
+}
