@@ -42,9 +42,7 @@ func (d *Decimal) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	l := len(data)
-
-	if l == 0 {
+	if len(data) == 0 {
 		return nil
 	}
 
