@@ -15,13 +15,30 @@ func (d Decimal) MarshalXML(xe *xml.Encoder, start xml.StartElement) error {
 	if d.isSpecial() {
 		return errInvalidMarshal
 	}
+
+	var digs digits
+	d.digits(&digs)
+
+	prec := 0
+	if digs.ndig != 0 {
+		prec = digs.ndig - 1
+	}
+
+	exp := digs.exp + prec
+
+	var v []byte
+	if exp < -6 || exp >= 20 {
+		v = digs.fmtE(nil, prec, 0, false, false, false, false, false, false, 'e')
+	} else {
+		prec = 0
+		if digs.exp < 0 {
+			prec = -digs.exp
+		}
+		v = digs.fmtF(nil, prec, 0, false, false, false, false, false)
+	}
+
 	// Write the start element
 	if err := xe.EncodeToken(start); err != nil {
-		return err
-	}
-	// v := d.formatDecimal()
-	v, err := d.MarshalText()
-	if err != nil {
 		return err
 	}
 
@@ -32,6 +49,7 @@ func (d Decimal) MarshalXML(xe *xml.Encoder, start xml.StartElement) error {
 	if err := xe.EncodeToken(start.End()); err != nil {
 		return err
 	}
+
 	return xe.Flush()
 }
 
@@ -40,10 +58,25 @@ func (d Decimal) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
 		return xml.Attr{}, errInvalidMarshalAttr
 	}
 
-	// v := d.formatDecimal()
-	v, err := d.MarshalText()
-	if err != nil {
-		return xml.Attr{}, err
+	var digs digits
+	d.digits(&digs)
+
+	prec := 0
+	if digs.ndig != 0 {
+		prec = digs.ndig - 1
+	}
+
+	exp := digs.exp + prec
+
+	var v []byte
+	if exp < -6 || exp >= 20 {
+		v = digs.fmtE(nil, prec, 0, false, false, false, false, false, false, 'e')
+	} else {
+		prec = 0
+		if digs.exp < 0 {
+			prec = -digs.exp
+		}
+		v = digs.fmtF(nil, prec, 0, false, false, false, false, false)
 	}
 
 	return xml.Attr{
@@ -89,28 +122,4 @@ func (d *Decimal) unmarshalString(value string) error {
 
 	*d = parse
 	return nil
-}
-
-func (d Decimal) formatDecimal() []byte {
-	var digs digits
-	d.digits(&digs)
-
-	prec := 0
-	if digs.ndig != 0 {
-		prec = digs.ndig - 1
-	}
-
-	exp := digs.exp + prec
-
-	var v []byte
-	if exp < -6 || exp >= 20 {
-		v = digs.fmtE(nil, prec, 0, false, false, false, false, false, false, 'e')
-	} else {
-		prec = 0
-		if digs.exp < 0 {
-			prec = -digs.exp
-		}
-		v = digs.fmtF(nil, prec, 0, false, false, false, false, false)
-	}
-	return v
 }

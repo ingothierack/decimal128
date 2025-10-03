@@ -8,252 +8,203 @@ import (
 )
 
 func TestDecimalMarshalXML(t *testing.T) {
-	values := []struct {
-		value int64
-		scale int
-	}{
-		{471, 0},
-		{0, 0},
-		{238, -2},
-		{-85414437, -8},
-		{1123456789, -9},
-		// add more values as needed
-	}
+	t.Parallel()
 
-	for _, v := range values {
-		d := New(v.value, v.scale)
+	initDecimalValues()
+
+	for _, val := range decimalValues {
+		if val.form != regularForm {
+			continue
+		}
+
+		decval := val.Decimal()
 		buf := &bytes.Buffer{}
 		xe := xml.NewEncoder(buf)
 		start := xml.StartElement{Name: xml.Name{Local: "test"}}
 
-		err := d.MarshalXML(xe, start)
+		err := decval.MarshalXML(xe, start)
+
 		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-			continue
+			t.Errorf("%v.MarshalXML() = (%s, %v), want (%s, <nil>", val, buf.String(), err, buf.String())
 		}
 
-		// Unmarshal the data back to its original form
-		d2 := &Decimal{}
+		var resval Decimal
 		xd := xml.NewDecoder(strings.NewReader(buf.String()))
 		tok, err := xd.Token()
 		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
+			t.Errorf("xml.Decoder.Token() = error %v, want <nil>", err)
 			continue
 		}
 
 		start2, ok := tok.(xml.StartElement)
 		if !ok {
-			t.Errorf("Expected a start element, got %T", tok)
+			t.Errorf("Expected xml.StartElement, got %T", tok)
 			continue
 		}
 
-		err = d2.UnmarshalXML(xd, start2)
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-			continue
-		}
+		err = resval.UnmarshalXML(xd, start2)
 
-		// Compare the original and unmarshalled data
-		if d.Cmp(*d2) != 0 {
-			t.Errorf("Expected %v, got %v", d, *d2)
+		if !resval.Equal(decval) || err != nil {
+			t.Errorf("Decimal.UnmarshalXML(%s) = (%v, %v), want (%v, <nil>)", buf.String(), resval, err, decval)
 		}
 	}
 }
 
 func TestDecimalMarshalXMLAttr(t *testing.T) {
-	tests := []struct {
-		value    Decimal
-		expected string
-	}{
-		{New(471, 0), `<test value="471"/>`},
-		{New(0, 0), `<test value="0"/>`},
-		{New(238, -2), `<test value="2.38"/>`},
-		{New(-85414437, -7), `<test value="-8.5414437"/>`},
-		{New(1123456789, -9), `<test value="1.123456789"/>`},
-		// add more tests as needed
-	}
+	t.Parallel()
 
-	for _, tt := range tests {
-		// Marshal the Decimal into an XML attribute
-		attr := xml.Attr{
-			Name:  xml.Name{Local: "value"},
-			Value: tt.value.String(),
-		}
+	initDecimalValues()
 
-		// Create an XML string with the marshalled attribute
-		xmlString := `<test ` + attr.Name.Local + `="` + attr.Value + `"/>`
-
-		// Compare the XML string with the expected XML string
-		if xmlString != tt.expected {
-			t.Errorf("Expected %s, got %s", tt.expected, xmlString)
+	for _, val := range decimalValues {
+		if val.form != regularForm {
 			continue
 		}
 
-		// Unmarshal the XML attribute back to a Decimal
-		d := &Decimal{}
-		err := d.UnmarshalXMLAttr(attr)
+		decval := val.Decimal()
+		attr, err := decval.MarshalXMLAttr(xml.Name{Local: "value"})
+
 		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-			continue
+			t.Errorf("%v.MarshalXMLAttr() = (%s, %v), want (%s, <nil>", val, attr.Value, err, attr.Value)
 		}
 
-		// Compare the unmarshalled Decimal with the original Decimal
-		if *d != tt.value {
-			t.Errorf("Expected %v, got %v", tt.value, *d)
+		var resval Decimal
+		err = resval.UnmarshalXMLAttr(attr)
+
+		if !resval.Equal(decval) || err != nil {
+			t.Errorf("Decimal.UnmarshalXMLAttr(%s) = (%v, %v), want (%v, <nil>)", attr.Value, resval, err, decval)
 		}
 	}
 }
 
-func TestDecimalMarshalUnmarshalXML(t *testing.T) {
-	tests := []struct {
-		xmlFragment string
-		expected    Decimal
-	}{
-		{`<test>471</test>`, New(471, 0)},
-		{`<test>0</test>`, New(0, 0)},
-		{`<test>2.38</test>`, New(238, -2)},
-		{`<test>-8.5414437</test>`, New(-85414437, -7)},
-		{`<test>1.123456789</test>`, New(1123456789, -9)},
-		// add more tests as needed
-	}
+func TestDecimalUnmarshalXML(t *testing.T) {
+	t.Parallel()
 
-	for _, tt := range tests {
-		// Unmarshal the XML fragment into a Decimal
-		d := &Decimal{}
-		xd := xml.NewDecoder(strings.NewReader(tt.xmlFragment))
+	for val, num := range textValues {
+		xmlFragment := "<test>" + val + "</test>"
+		var res Decimal
+		xd := xml.NewDecoder(strings.NewReader(xmlFragment))
 		tok, err := xd.Token()
 		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
+			t.Errorf("xml.Decoder.Token() for %s = error %v", val, err)
 			continue
 		}
 
 		start, ok := tok.(xml.StartElement)
 		if !ok {
-			t.Errorf("Expected a start element, got %T", tok)
+			t.Errorf("Expected xml.StartElement for %s, got %T", val, tok)
 			continue
 		}
 
-		err = d.UnmarshalXML(xd, start)
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-			continue
-		}
+		err = res.UnmarshalXML(xd, start)
 
-		// Compare the unmarshalled Decimal with the expected Decimal
-		if *d != tt.expected {
-			t.Errorf("Expected %v, got %v", tt.expected, *d)
-			continue
+		if num.isInf() || num.IsNaN() || strings.Contains(val, "_") {
+			if err == nil {
+				t.Errorf("Decimal.UnmarshalXML(%s) = (0, <nil>), want (%v, cannot unmarshal)", val, res)
+			}
+		} else if !res.Equal(num) || err != nil {
+			t.Errorf("Decimal.UnmarshalXML(%s) = (%v, %v), want (%v, <nil>)", val, res, err, num)
 		}
+	}
 
-		// Marshal the Decimal back to an XML fragment
-		buf := &bytes.Buffer{}
-		xe := xml.NewEncoder(buf)
-		err = d.MarshalXML(xe, start)
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-			continue
-		}
+	num := New(123, -1)
+	res := num
+	xmlFragment := "<test></test>"
+	xd := xml.NewDecoder(strings.NewReader(xmlFragment))
+	tok, _ := xd.Token()
+	start, _ := tok.(xml.StartElement)
+	err := res.UnmarshalXML(xd, start)
+	if !res.Equal(num) || err != nil {
+		t.Errorf("Decimal.UnmarshalXML(<empty>) = (%v, %v), want (%v, <nil>)", res, err, num)
+	}
 
-		// Compare the marshalled XML fragment with the original XML fragment
-		if buf.String() != tt.xmlFragment {
-			t.Errorf("Expected %s, got %s", tt.xmlFragment, buf.String())
-		}
+	res = num
+	xmlFragment = "<test>   </test>"
+	xd = xml.NewDecoder(strings.NewReader(xmlFragment))
+	tok, _ = xd.Token()
+	start, _ = tok.(xml.StartElement)
+	err = res.UnmarshalXML(xd, start)
+	if !res.Equal(num) || err != nil {
+		t.Errorf("Decimal.UnmarshalXML(<whitespace>) = (%v, %v), want (%v, <nil>)", res, err, num)
 	}
 }
 
 func TestDecimalUnmarshalXMLAttr(t *testing.T) {
-	tests := []struct {
-		xmlFragment string
-		expected    Decimal
-	}{
-		{`<test value="471" />`, New(471, 0)},
-		{`<test value="0" />`, New(0, 0)},
-		{`<test value="2.38" />`, New(238, -2)},
-		{`<test value="-8.5414437" />`, New(-85414437, -7)},
-		{`<test value="1.123456789" />`, New(1123456789, -9)},
-		// add more tests as needed
+	t.Parallel()
+
+	for val, num := range textValues {
+		var res Decimal
+		attr := xml.Attr{
+			Name:  xml.Name{Local: "value"},
+			Value: val,
+		}
+
+		err := res.UnmarshalXMLAttr(attr)
+
+		if num.isInf() || num.IsNaN() || strings.Contains(val, "_") {
+			if err == nil {
+				t.Errorf("Decimal.UnmarshalXMLAttr(%s) = (0, <nil>), want (%v, cannot unmarshal)", val, res)
+			}
+		} else if !res.Equal(num) || err != nil {
+			t.Errorf("Decimal.UnmarshalXMLAttr(%s) = (%v, %v), want (%v, <nil>)", val, res, err, num)
+		}
 	}
 
-	for _, tt := range tests {
-		// Unmarshal the XML fragment into a Decimal
-		d := &Decimal{}
-		xd := xml.NewDecoder(strings.NewReader(tt.xmlFragment))
+	num := New(123, -1)
+	res := num
+	attr := xml.Attr{
+		Name:  xml.Name{Local: "value"},
+		Value: "",
+	}
+	err := res.UnmarshalXMLAttr(attr)
+	if !res.Equal(num) || err != nil {
+		t.Errorf("Decimal.UnmarshalXMLAttr(<empty>) = (%v, %v), want (%v, <nil>)", res, err, num)
+	}
+
+	res = num
+	attr = xml.Attr{
+		Name:  xml.Name{Local: "value"},
+		Value: "   ",
+	}
+	err = res.UnmarshalXMLAttr(attr)
+	if !res.Equal(num) || err != nil {
+		t.Errorf("Decimal.UnmarshalXMLAttr(<whitespace>) = (%v, %v), want (%v, <nil>)", res, err, num)
+	}
+}
+
+func FuzzDecimalUnmarshalXML(f *testing.F) {
+	f.Add("123456.789e10")
+
+	f.Fuzz(func(t *testing.T, data string) {
+		t.Parallel()
+
+		xmlFragment := "<test>" + data + "</test>"
+		var dec Decimal
+		xd := xml.NewDecoder(strings.NewReader(xmlFragment))
 		tok, err := xd.Token()
 		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-			continue
+			return
 		}
 
 		start, ok := tok.(xml.StartElement)
 		if !ok {
-			t.Errorf("Expected a start element, got %T", tok)
-			continue
+			return
 		}
 
-		for _, attr := range start.Attr {
-			if attr.Name.Local == "value" {
-				err = d.UnmarshalXMLAttr(attr)
-				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
-					continue
-				}
-			}
-		}
-
-		// Compare the unmarshalled Decimal with the expected Decimal
-		if *d != tt.expected {
-			t.Errorf("Expected %v, got %v", tt.expected, *d)
-		}
-	}
+		dec.UnmarshalXML(xd, start)
+	})
 }
 
-// Benchmark functions
-func BenchmarkMarshalXML(b *testing.B) {
-	testCases := []struct {
-		d     Decimal
-		start xml.StartElement
-	}{
-		{New(471, 0), xml.StartElement{Name: xml.Name{Local: "test"}}},
-		{New(0, 0), xml.StartElement{Name: xml.Name{Local: "test"}}},
-		{New(238, -2), xml.StartElement{Name: xml.Name{Local: "test"}}},
-		{New(-85414437, -8), xml.StartElement{Name: xml.Name{Local: "test"}}},
-		{New(1123456789, -9), xml.StartElement{Name: xml.Name{Local: "test"}}},
-	}
+func FuzzDecimalUnmarshalXMLAttr(f *testing.F) {
+	f.Add("123456.789e10")
 
-	for i := range testCases {
-		b.Run(string(rune('0'+i)), func(b *testing.B) {
-			b.ResetTimer()
-			for b.Loop() {
-				buf := &bytes.Buffer{}
-				encoder := xml.NewEncoder(buf)
-				_ = testCases[i].d.MarshalXML(encoder, testCases[i].start)
-			}
-		})
-	}
-}
+	f.Fuzz(func(t *testing.T, data string) {
+		t.Parallel()
 
-func BenchmarkUnmarshalXML(b *testing.B) {
-	testCases := []struct {
-		xmlFragment string
-		d           *Decimal
-		start       xml.StartElement
-	}{
-		{"<test>471</test>", &Decimal{}, xml.StartElement{Name: xml.Name{Local: "test"}}},
-		{"<test>0</test>", &Decimal{}, xml.StartElement{Name: xml.Name{Local: "test"}}},
-		{"<test>2.38</test>", &Decimal{}, xml.StartElement{Name: xml.Name{Local: "test"}}},
-		{"<test>-8.5414437</test>", &Decimal{}, xml.StartElement{Name: xml.Name{Local: "test"}}},
-		{"<test>1.123456789</test>", &Decimal{}, xml.StartElement{Name: xml.Name{Local: "test"}}},
-	}
-
-	for i := range testCases {
-		b.Run(string(rune('0'+i)), func(b *testing.B) {
-			b.ResetTimer()
-			for b.Loop() {
-				xd := xml.NewDecoder(strings.NewReader(testCases[i].xmlFragment))
-				tok, _ := xd.Token()
-				start, _ := tok.(xml.StartElement)
-				_ = testCases[i].d.UnmarshalXML(xd, start)
-			}
-		})
-	}
+		var dec Decimal
+		attr := xml.Attr{
+			Name:  xml.Name{Local: "value"},
+			Value: data,
+		}
+		dec.UnmarshalXMLAttr(attr)
+	})
 }
