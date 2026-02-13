@@ -1039,6 +1039,18 @@ func (d Decimal) IsZero() bool {
 	}
 }
 
+// IsNeg reports whether the Decimal is strictly negative (less than zero).
+// Returns false for zero, positive values, NaN, and positive infinity.
+func (d Decimal) IsNeg() bool {
+	return d.Signbit() && !d.IsZero() && !d.IsNaN()
+}
+
+// IsPositive reports whether the Decimal is strictly positive (greater than zero).
+// Returns false for zero, negative values, NaN, and negative infinity.
+func (d Decimal) IsPositive() bool {
+	return !d.Signbit() && !d.IsZero() && !d.IsNaN()
+}
+
 func (d Decimal) isOne() bool {
 	if d.isSpecial() {
 		return false

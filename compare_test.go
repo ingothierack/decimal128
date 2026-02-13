@@ -264,6 +264,50 @@ func TestDecimalIsZero(t *testing.T) {
 	}
 }
 
+func TestDecimalIsNeg(t *testing.T) {
+	t.Parallel()
+
+	initDecimalValues()
+
+	for _, val := range decimalValues {
+		decval := val.Decimal()
+		neg := decval.IsNeg()
+
+		var res bool
+		if val.form == regularForm && val.neg && (val.sig[0]|val.sig[1]) != 0 {
+			res = true
+		} else if val.form == infForm && val.neg {
+			res = true
+		}
+
+		if neg != res {
+			t.Errorf("%v.IsNeg() = %t, want %t", val, neg, res)
+		}
+	}
+}
+
+func TestDecimalIsPositive(t *testing.T) {
+	t.Parallel()
+
+	initDecimalValues()
+
+	for _, val := range decimalValues {
+		decval := val.Decimal()
+		pos := decval.IsPositive()
+
+		var res bool
+		if val.form == regularForm && !val.neg && (val.sig[0]|val.sig[1]) != 0 {
+			res = true
+		} else if val.form == infForm && !val.neg {
+			res = true
+		}
+
+		if pos != res {
+			t.Errorf("%v.IsPositive() = %t, want %t", val, pos, res)
+		}
+	}
+}
+
 func TestMax(t *testing.T) {
 	t.Parallel()
 
